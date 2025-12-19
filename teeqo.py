@@ -86,7 +86,7 @@ with h_col1:
         st.markdown(f'<img src="{MY_AVATAR}" style="width:75px; height:75px; border-radius:50%; object-fit:cover; border:2px solid #007bff;">', unsafe_allow_html=True)
 with h_col2:
     st.title("Tego AI")
-    st.caption("نسخة الإصلاح الذاتي والذاكرة المستمرة")
+    st.caption("انا هنا لمساعدتك والتنظير معك")
 
 st.divider()
 
