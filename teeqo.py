@@ -6,7 +6,7 @@ import time
 from PyPDF2 import PdfReader
 
 # --- 1. الإعدادات الأساسية ---
-API_KEY = "AIzaSyAaixKmeK3og1N2MfZkoLt15JQyFSwdNKY"
+API_KEY = "AIzaSyA29ifogr_JsHRKpXIy9IimSR9MWTwYgg0"
 MEMORY_FILE = "tego_final_memory.txt"
 IMAGE_PATH = "me.jpg" 
 
