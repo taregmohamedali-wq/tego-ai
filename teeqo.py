@@ -7,7 +7,7 @@ from PyPDF2 import PdfReader
 from gtts import gTTS
 
 # --- 1. الإعدادات ---
-API_KEY = "AIzaSyA1L85px8YSqjtBaMOtgmuY5WMBJblTzr4" 
+API_KEY = "AIzaSyC8cemzqzJIojHsWAmmlSzizSLG0sJqp-M" 
 
 try:
     genai.configure(api_key=API_KEY)
