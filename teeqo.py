@@ -19,7 +19,7 @@ AVATAR = get_avatar_base64()
 
 # --- 2. محرك الذكاء السحابي (بدون تثبيت برامج) ---
 # الصق المفتاح الذي نسخته من Hugging Face هنا مكان النجوم أدناه
-HF_TOKEN = "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" 
+HF_TOKEN = "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" 
 client = InferenceClient(api_key=HF_TOKEN)
 
 def ask_tego_online(prompt, context):
