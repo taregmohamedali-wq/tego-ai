@@ -1,4 +1,4 @@
 streamlit
-google-generativeai
+requests
 PyPDF2
-gTTS
+huggingface_hub
