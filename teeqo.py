@@ -1,115 +1,82 @@
 ﻿import streamlit as st
-import google.generativeai as genai
-import os
 import base64
-import re
+import os
 from PyPDF2 import PdfReader
-from gtts import gTTS
+from huggingface_hub import InferenceClient
 
-# --- 1. الإعدادات ---
-API_KEY = "AIzaSyC8cemzqzJIojHsWAmmlSzizSLG0sJqp-M" 
+# --- 1. إعدادات الهوية والواجهة الفخمة ---
+st.set_page_config(page_title="Tego AI Strategic Advisor", layout="wide")
 
-try:
-    genai.configure(api_key=API_KEY)
-except Exception as e:
-    st.error(f"خطأ في إعداد المفتاح: {e}")
-
-MEMORY_FILE = "tego_brain_master.txt"
-IMAGE_PATH = "me.jpg" 
-
-def get_image_base64(path):
-    if os.path.exists(path):
-        with open(path, "rb") as img_file:
-            return f"data:image/jpeg;base64,{base64.b64encode(img_file.read()).decode()}"
+# وظيفة لإظهار صورتك الشخصية بجانب رد تيجو لضمان ظهورها دائماً
+def get_avatar_base64():
+    if os.path.exists("me.jpg"):
+        with open("me.jpg", "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+            return f"data:image/jpeg;base64,{data}"
     return None
 
-MY_AVATAR = get_image_base64(IMAGE_PATH)
+AVATAR = get_avatar_base64()
 
-# --- 2. محرك الرد الذكي (صوت رجل) ---
-def ask_tego(question):
+# --- 2. محرك الذكاء السحابي (بدون تثبيت برامج) ---
+# الصق المفتاح الذي نسخته من Hugging Face هنا مكان النجوم أدناه
+HF_TOKEN = "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" 
+client = InferenceClient(api_key=HF_TOKEN)
+
+def ask_tego_online(prompt, context):
+    messages = [
+        {"role": "system", "content": f"أنت تيجو، المستشار الاستراتيجي لطارق. استخدم هذه المعلومات المرفوعة للرد بذكاء: {context}"},
+        {"role": "user", "content": prompt}
+    ]
     try:
-        # فحص الموديلات المتاحة لتفادي خطأ 404
-        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        target = 'gemini-1.5-flash'
-        if not any(target in m for m in models):
-            target = models[0].split('/')[-1] if models else 'gemini-pro'
-
-        model = genai.GenerativeModel(target)
-        
-        context = ""
-        if os.path.exists(MEMORY_FILE):
-            with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-                context = f.read()[-1500:]
-
-        prompt = f"أنت تيجو، مساعد ذكي بشخصية رجل ناضج. الذاكرة السابقة: {context}\nالسؤال: {question}"
-        response = model.generate_content(prompt)
-        return response.text
+        # اتصال فوري وسريع عبر الإنترنت مثل Gemini
+        response = client.chat.completions.create(
+            model="meta-llama/Llama-3.2-3B-Instruct",
+            messages=messages,
+            max_tokens=800
+        )
+        return response.choices[0].message.content
     except Exception as e:
-        if "429" in str(e): return "⚠️ الحصة المجانية انتهت لهذا اليوم."
-        return f"❌ خطأ تقني: {str(e)}"
+        return f"تيجو: أستاذ طارق، يرجى التأكد من وضع مفتاح Token الصحيح في الكود. (Error: {str(e)})"
 
-# --- 3. محرك النطق الرجالي ---
-def speak_male(text):
-    if not text or "❌" in text: return
-    clean_text = re.sub(r'[*#_~-]', '', text)
-    tts = gTTS(text=clean_text[:300], lang='ar')
-    tts.save("voice.mp3")
-    with open("voice.mp3", "rb") as f:
-        b64 = base64.b64encode(f.read()).decode()
-    audio_html = f'<audio autoplay src="data:audio/mp3;base64,{b64}"></audio>'
-    st.markdown(audio_html, unsafe_allow_html=True)
-
-# --- 4. تصميم الواجهة (الإصدار الأول + جانبية) ---
-st.set_page_config(page_title="Tego AI", layout="wide")
-
-# المركز الجانبي (إخفاء وإظهار)
+# --- 3. مركز تعلم تيجو (القائمة الجانبية) ---
 with st.sidebar:
-    st.markdown("<h2 style='text-align: center;'>🧠 مركز التعلم</h2>", unsafe_allow_html=True)
-    st.divider()
+    st.markdown("### 🧠 مركز تعلم تيجو")
+    # مكان رفع الملفات كما طلبت في صورك السابقة
+    uploaded_file = st.file_uploader("ارفع (PDF) ليتعلم تيجو سحابياً:", type=['pdf'])
     
-    st.subheader("📁 ملف PDF")
-    up_file = st.file_uploader("ارفع ملف:", type=['pdf'])
-    if up_file and st.button("تغذية من ملف"):
-        reader = PdfReader(up_file)
-        content = "".join([p.extract_text() for p in reader.pages])
-        with open(MEMORY_FILE, "a", encoding="utf-8") as f:
-            f.write(f"\n[Data]: {content[:1000]}\n")
-        st.success("تم الحفظ!")
+    if uploaded_file:
+        with st.spinner("تيجو يقرأ ويستوعب الملف..."):
+            reader = PdfReader(uploaded_file)
+            text = "".join([page.extract_text() for page in reader.pages])
+            st.session_state.pdf_info = text[:4000] # حفظ المعلومات في الذاكرة
+            st.success("تم الاستيعاب! تيجو جاهز للرد بناءً على ملفك.")
+    
+    if st.button("مسح الذاكرة 🗑️"):
+        st.session_state.pdf_info = ""
+        st.session_state.messages = []
+        st.rerun()
 
-    st.divider()
-    st.subheader("✍️ كتابة معلومة")
-    manual_info = st.text_area("أدخل معلومة يدوية:", height=100)
-    if st.button("حفظ المعلومة"):
-        with open(MEMORY_FILE, "a", encoding="utf-8") as f:
-            f.write(f"\n[Info]: {manual_info}\n")
-        st.success("تم الحفظ!")
-
-# الهيدر الكلاسيكي
-st.markdown("<center>", unsafe_allow_html=True)
-if MY_AVATAR:
-    st.markdown(f'<img src="{MY_AVATAR}" style="width:110px;height:110px;border-radius:50%;border:3px solid #007bff;object-fit:cover;">', unsafe_allow_html=True)
-st.title("Tego AI")
-st.caption("أنا هنا لمساعدتك ولكي ننظر سوياً")
-st.markdown("</center>", unsafe_allow_html=True)
-
-st.divider()
+# --- 4. منطقة المحادثة التفاعلية ---
+st.title("Tego AI Strategic Advisor")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# الدردشة في المنتصف
-c1, c2, c3 = st.columns([1, 4, 1])
-with c2:
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"], avatar=MY_AVATAR if msg["role"]=="assistant" else None):
-            st.markdown(msg["content"])
+# عرض المحادثة السابقة مع صورتك الشخصية
+for msg in st.session_state.messages:
+    current_avatar = AVATAR if msg["role"] == "assistant" else None
+    with st.chat_message(msg["role"], avatar=current_avatar):
+        st.markdown(msg["content"])
 
-    if prompt := st.chat_input("تحدث مع تيجو..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.markdown(prompt)
+# استقبال سؤال طارق
+if prompt := st.chat_input("تحدث مع تيجو بذكاء السحابة..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"): 
+        st.markdown(prompt)
 
-        with st.chat_message("assistant", avatar=MY_AVATAR):
-            answer = ask_tego(prompt)
-            st.markdown(answer)
-            st.session_state.messages.append({"role": "assistant", "content": answer})
-            speak_male(answer)
+    with st.chat_message("assistant", avatar=AVATAR):
+        # سحب البيانات من "مركز التعلم" إذا كانت متوفرة
+        context_data = st.session_state.get('pdf_info', "لا توجد ملفات مرفوعة حالياً")
+        answer = ask_tego_online(prompt, context_data)
+        st.markdown(answer)
+        st.session_state.messages.append({"role": "assistant", "content": answer})
