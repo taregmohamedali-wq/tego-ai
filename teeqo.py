@@ -1,82 +1,139 @@
 ﻿import streamlit as st
+import ollama
+from PyPDF2 import PdfReader
 import base64
 import os
-from PyPDF2 import PdfReader
-from huggingface_hub import InferenceClient
+import requests
+from bs4 import BeautifulSoup
+import re
 
-# --- 1. إعدادات الهوية والواجهة الفخمة ---
-st.set_page_config(page_title="Tego AI Strategic Advisor", layout="wide")
+# ----------------------------------
+# إعداد الصفحة
+# ----------------------------------
+st.set_page_config(page_title="Tego AI Agent", layout="wide")
+st.title(" Tego  Agent ")
+st.caption("Agent محلي • عربي واضح • إنترنت ذكي • بدون API")
 
-# وظيفة لإظهار صورتك الشخصية بجانب رد تيجو لضمان ظهورها دائماً
-def get_avatar_base64():
-    if os.path.exists("me.jpg"):
-        with open("me.jpg", "rb") as f:
-            data = base64.b64encode(f.read()).decode()
-            return f"data:image/jpeg;base64,{data}"
+# ----------------------------------
+# Avatar
+# ----------------------------------
+def load_avatar():
+    if os.path.exists("avatar.png"):
+        with open("avatar.png", "rb") as f:
+            return base64.b64encode(f.read()).decode()
     return None
 
-AVATAR = get_avatar_base64()
+AVATAR = load_avatar()
 
-# --- 2. محرك الذكاء السحابي (بدون تثبيت برامج) ---
-# الصق المفتاح الذي نسخته من Hugging Face هنا مكان النجوم أدناه
-HF_TOKEN = "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" 
-client = InferenceClient(api_key=HF_TOKEN)
-
-def ask_tego_online(prompt, context):
-    messages = [
-        {"role": "system", "content": f"أنت تيجو، المستشار الاستراتيجي لطارق. استخدم هذه المعلومات المرفوعة للرد بذكاء: {context}"},
-        {"role": "user", "content": prompt}
-    ]
-    try:
-        # اتصال فوري وسريع عبر الإنترنت مثل Gemini
-        response = client.chat.completions.create(
-            model="meta-llama/Llama-3.2-3B-Instruct",
-            messages=messages,
-            max_tokens=800
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"تيجو: أستاذ طارق، يرجى التأكد من وضع مفتاح Token الصحيح في الكود. (Error: {str(e)})"
-
-# --- 3. مركز تعلم تيجو (القائمة الجانبية) ---
-with st.sidebar:
-    st.markdown("### 🧠 مركز تعلم تيجو")
-    # مكان رفع الملفات كما طلبت في صورك السابقة
-    uploaded_file = st.file_uploader("ارفع (PDF) ليتعلم تيجو سحابياً:", type=['pdf'])
-    
-    if uploaded_file:
-        with st.spinner("تيجو يقرأ ويستوعب الملف..."):
-            reader = PdfReader(uploaded_file)
-            text = "".join([page.extract_text() for page in reader.pages])
-            st.session_state.pdf_info = text[:4000] # حفظ المعلومات في الذاكرة
-            st.success("تم الاستيعاب! تيجو جاهز للرد بناءً على ملفك.")
-    
-    if st.button("مسح الذاكرة 🗑️"):
-        st.session_state.pdf_info = ""
-        st.session_state.messages = []
-        st.rerun()
-
-# --- 4. منطقة المحادثة التفاعلية ---
-st.title("Tego AI Strategic Advisor")
-
+# ----------------------------------
+# الحالة
+# ----------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# عرض المحادثة السابقة مع صورتك الشخصية
+if "pdf_context" not in st.session_state:
+    st.session_state.pdf_context = ""
+
+# ----------------------------------
+# Sidebar
+# ----------------------------------
+with st.sidebar:
+    st.header("📂 مركز المعرفة")
+
+    uploaded_file = st.file_uploader("ارفع PDF (اختياري)", type=["pdf"])
+    if uploaded_file:
+        reader = PdfReader(uploaded_file)
+        text = ""
+        for p in reader.pages:
+            if p.extract_text():
+                text += p.extract_text()
+        st.session_state.pdf_context = text[:1200]
+        st.success("تم تحميل الملف")
+
+    if st.button("🗑️ مسح الذاكرة"):
+        st.session_state.messages = []
+        st.session_state.pdf_context = ""
+        st.rerun()
+
+# ----------------------------------
+# 🌐 بحث إنترنت نظيف
+# ----------------------------------
+def web_search_clean(query):
+    try:
+        url = f"https://duckduckgo.com/html/?q={query}"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers, timeout=6)
+        soup = BeautifulSoup(r.text, "html.parser")
+        text = soup.get_text(separator=" ", strip=True)
+        text = re.sub(r"\s+", " ", text)
+        return text[:1200]
+    except:
+        return ""
+
+# ----------------------------------
+# 🧠 قرار استخدام الإنترنت
+# ----------------------------------
+def should_use_internet(prompt):
+    keywords = ["سعر", "اليوم", "الآن", "آخر", "حديث", "أخبار", "كم"]
+    return any(word in prompt for word in keywords)
+
+# ----------------------------------
+# 🧠 Agent الرئيسي (عربي نظيف)
+# ----------------------------------
+def ask_tego(prompt, context):
+    internet_data = ""
+    if should_use_internet(prompt):
+        internet_data = web_search_clean(prompt)
+
+    system_prompt = f"""
+أنت مساعد ذكي عربي اسمه تيجو.
+
+التزم بالقواعد التالية حرفيًا:
+- اكتب بالعربية فقط
+- جمل واضحة وقصيرة
+- لا تكتب أي تفكير داخلي
+- لا تخلط لغات
+- إذا كانت المعلومة غير مؤكدة، اذكر ذلك بوضوح
+
+معلومات إضافية:
+{context}
+
+معلومات من الإنترنت:
+{internet_data}
+"""
+
+    response = ollama.chat(
+        model="gemma:2b",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        options={"num_predict": 160}
+    )
+
+    return response["message"]["content"]
+
+# ----------------------------------
+# عرض المحادثة
+# ----------------------------------
 for msg in st.session_state.messages:
-    current_avatar = AVATAR if msg["role"] == "assistant" else None
-    with st.chat_message(msg["role"], avatar=current_avatar):
+    avatar = f"data:image/png;base64,{AVATAR}" if msg["role"] == "assistant" and AVATAR else None
+    with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
-# استقبال سؤال طارق
-if prompt := st.chat_input("تحدث مع تيجو بذكاء السحابة..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): 
-        st.markdown(prompt)
+# ----------------------------------
+# إدخال المستخدم
+# ----------------------------------
+user_input = st.chat_input("تحدث مع تيجو...")
 
-    with st.chat_message("assistant", avatar=AVATAR):
-        # سحب البيانات من "مركز التعلم" إذا كانت متوفرة
-        context_data = st.session_state.get('pdf_info', "لا توجد ملفات مرفوعة حالياً")
-        answer = ask_tego_online(prompt, context_data)
-        st.markdown(answer)
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    with st.chat_message("assistant", avatar=f"data:image/png;base64,{AVATAR}" if AVATAR else None):
+        with st.spinner("تيجو يجيب..."):
+            answer = ask_tego(user_input, st.session_state.pdf_context)
+            st.markdown(answer)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
