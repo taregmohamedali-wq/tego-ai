@@ -3,79 +3,100 @@ import google.generativeai as genai
 import os
 from PyPDF2 import PdfReader
 
-# 1. إعدادات الصفحة
+# 1. إعدادات الصفحة والواجهة
 st.set_page_config(page_title="Tego AI Strategic Advisor", layout="wide")
 
 # مسار صورتك الشخصية
 USER_IMAGE = "me.png"
 
-# 2. إعداد المفتاح والموديل
-API_KEY = "AIzaSyDRJ1MRnpBEnEN2ArpJ_j0Yvyh6pbroVWA" # تأكد من وضع مفتاحك الصحيح
+# --- [ضع مفتاحك هنا بدقة بين علامتي التنصيص] ---
+API_KEY = "ضـع_مفتاحـك_هنـا"
+# ---------------------------------------------
 
-if API_KEY:
-    genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-else:
-    st.error("الرجاء إضافة مفتاح API.")
+# 2. تهيئة الموديل مع فحص تلقائي لتجنب خطأ 404
+def initialize_smart_model():
+    if not API_KEY or API_KEY == "AIzaSyDRJ1MRnpBEnEN2ArpJ_j0Yvyh6pbroVWA":
+        return None
+    try:
+        genai.configure(api_key=API_KEY)
+        # فحص الموديلات المتاحة في حسابك واختيار الأفضل
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        if 'models/gemini-1.5-flash' in available_models:
+            return genai.GenerativeModel('gemini-1.5-flash')
+        elif 'models/gemini-pro' in available_models:
+            return genai.GenerativeModel('gemini-pro')
+        return genai.GenerativeModel(available_models[0])
+    except:
+        return None
 
-# 3. القائمة الجانبية (خيار اللغة ورفع الملفات)
+model = initialize_smart_model()
+
+# 3. وظيفة قراءة ملفات الـ PDF
+def read_pdf(file):
+    pdf_reader = PdfReader(file)
+    content = ""
+    for page in pdf_reader.pages:
+        content += page.extract_text()
+    return content
+
+# 4. القائمة الجانبية (اللغة + الملفات)
 with st.sidebar:
+    st.title("مركز تحكم تيجو 🧠")
     if os.path.exists(USER_IMAGE):
         st.image(USER_IMAGE, width=120)
     
-    st.title("مركز تحكم تيجو 🧠")
-    
-    # خيار اختيار اللغة
-    language = st.radio("اختر لغة الحوار / Choose Language:", ("العربية", "English"))
+    # خيار اللغة
+    lang = st.radio("لغة الحوار / Language", ["العربية", "English"])
     
     st.write("---")
-    st.write("📂 تحليل الملفات الاستراتيجية")
-    uploaded_file = st.file_uploader("ارفع ملف PDF ليتعلمه تيجو", type=['pdf'])
+    # رفع الملف
+    uploaded_file = st.file_uploader("ارفع ملف استراتيجي (PDF)", type=['pdf'])
+    if uploaded_file:
+        st.success("تم رفع الملف بنجاح!")
 
-# وظيفة استخراج النص من الـ PDF
-def get_pdf_text(pdf_file):
-    text = ""
-    pdf_reader = PdfReader(pdf_file)
-    for page in pdf_reader.pages:
-        text += page.extract_text()
-    return text
+st.title("Tego AI Strategic Advisor")
 
-# 4. إدارة ذاكرة المحادثة
+# 5. إدارة سجل المحادثة
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# عرض الرسائل السابقة (صورتك تظهر كأفاتار لتيجو)
 for message in st.session_state.messages:
     avatar = USER_IMAGE if message["role"] == "assistant" and os.path.exists(USER_IMAGE) else None
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-# 5. معالجة السؤال والذكاء الاصطناعي
-if prompt := st.chat_input("تحدث مع تيجو..."):
+# 6. استقبال السؤال وتوليد الإجابة الذكية
+if prompt := st.chat_input("تحدث مع تيجو بذكاء..."):
+    # إضافة سؤال المستخدم
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # توليد رد تيجو
     with st.chat_message("assistant", avatar=USER_IMAGE if os.path.exists(USER_IMAGE) else None):
-        with st.spinner("تيجو يحلل البيانات..."):
-            try:
-                # تحضير السياق (Context)
-                context = ""
-                if uploaded_file:
-                    file_text = get_pdf_text(uploaded_file)
-                    context = f"المعلومات التالية مستخرجة من ملف مرفوع: {file_text[:5000]}\n\n" # نأخذ أول 5000 حرف
-                
-                # إعداد التعليمات حسب اللغة المختارة
-                system_instruction = f"أنت مستشار استراتيجي ذكي يدعى تيجو. أجب باللغة {language} فقط. "
-                if context:
-                    system_instruction += "استخدم المعلومات الموجودة في الملف المرفوع للإجابة إذا كانت مرتبطة بالسؤال."
-                
-                # إرسال السؤال مع السياق
-                full_prompt = f"{system_instruction}\n\nالسؤال: {prompt}"
-                response = model.generate_content(full_prompt)
-                
-                full_response = response.text
-                st.markdown(full_response)
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
-                
-            except Exception as e:
-                st.error(f"حدث خطأ: {e}")
+        if not model:
+            st.error("المفتاح غير صحيح أو غير موجود. يرجى وضعه في الكود.")
+        else:
+            with st.spinner("تيجو يحلل البيانات..."):
+                try:
+                    # بناء السياق (إذا كان هناك ملف مرفوع)
+                    file_context = ""
+                    if uploaded_file:
+                        file_context = f"\nالمعلومات من الملف: {read_pdf(uploaded_file)[:4000]}"
+                    
+                    # التعليمات البرمجية (System Prompt)
+                    system_prompt = f"أنت تيجو، مستشار استراتيجي ذكي. لغتك الحالية هي {lang}. "
+                    if file_context:
+                        system_prompt += "استخدم بيانات الملف المرفوع للإجابة بدقة."
+                    
+                    # طلب الرد
+                    full_query = f"{system_prompt}\n\nالسؤال: {prompt}\n{file_context}"
+                    response = model.generate_content(full_query)
+                    
+                    answer = response.text
+                    st.markdown(answer)
+                    st.session_state.messages.append({"role": "assistant", "content": answer})
+                except Exception as e:
+                    st.error(f"حدث خطأ أثناء المعالجة: {e}")
