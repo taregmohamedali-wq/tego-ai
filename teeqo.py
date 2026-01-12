@@ -2,66 +2,63 @@
 import google.generativeai as genai
 import os
 
-# إعدادات الصفحة
-st.set_page_config(page_title="Tego AI ", layout="wide")
+# 1. إعدادات الصفحة
+st.set_page_config(page_title="Tego AI Strategic Advisor", layout="wide")
 
 # مسار صورتك الشخصية
 USER_IMAGE = "me.png"
 
-# جلب المفتاح بأمان من Secrets
+# 2. إعداد المفتاح (وضعه داخل الكود مباشرة كما طلبت)
+# استبدل النجوم بمفتاحك الذي يبدأ بـ AIza
+API_KEY = "AIzaSyDRJ1MRnpBEnEN2ArpJ_j0Yvyh6pbroVWA"
+
 try:
-    if "GEMINI_API_KEY" in st.secrets:
-        genai.configure(api_key=st.secrets["AIzaSyDRJ1MRnpBEnEN2ArpJ_j0Yvyh6pbroVWA"])
-        model = genai.GenerativeModel('gemini-1.5-flash')
-    else:
-        st.error("الرجاء إضافة المفتاح في إعدادات Secrets.")
-        model = None
-except:
-    st.error("حدث خطأ في الاتصال بخادم الذكاء الاصطناعي.")
+    genai.configure(api_key=API_KEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except Exception as e:
+    st.error(f"حدث خطأ في تهيئة المفتاح: {e}")
     model = None
 
-# القائمة الجانبية (Sidebar)
+# 3. القائمة الجانبية (Sidebar)
 with st.sidebar:
     st.title("مركز تعلم تيجو 🧠")
     if os.path.exists(USER_IMAGE):
         st.image(USER_IMAGE, width=100)
-    st.write("ارفع ملفاتك ليتعلم منها تيجو (PDF)")
+    st.write("(PDF) ارفع ملفاتك ليتعلم منها تيجو")
     st.file_uploader("اسحب الملف هنا", type=['pdf'])
 
 st.title("Tego AI Strategic Advisor")
 
-# إدارة سجل المحادثة
+# 4. إدارة الذاكرة وعرض الرسائل
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# عرض الرسائل السابقة مع صورتك الشخصية كأفاتار للمساعد
 for message in st.session_state.messages:
-    # المساعد يظهر بصورتك، المستخدم يظهر بالأيقونة الافتراضية
+    # صورتك تظهر هنا بجانب ردود تيجو
     avatar = USER_IMAGE if message["role"] == "assistant" and os.path.exists(USER_IMAGE) else None
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-# منطقة الدردشة
+# 5. استقبال السؤال والرد بذكاء
 if prompt := st.chat_input("تحدث مع تيجو بذكاء..."):
-    # رسالة المستخدم
+    # عرض رسالة المستخدم
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # رد تيجو (باستخدام الذكاء الاصطناعي الحقيقي)
+    # توليد الرد من جوجل جيميناي
     with st.chat_message("assistant", avatar=USER_IMAGE if os.path.exists(USER_IMAGE) else None):
         if model:
             try:
                 with st.spinner("تيجو يفكر الآن..."):
-                    # إرسال السؤال لجوجل جيميناي
                     response = model.generate_content(prompt)
                     full_response = response.text
                     st.markdown(full_response)
             except Exception as e:
-                full_response = "عذراً، الخادم مشغول حالياً. يرجى المحاولة بعد قليل."
+                full_response = "عذراً، المفتاح قد يكون غير صحيح أو هناك مشكلة في الاتصال."
                 st.error(f"خطأ: {e}")
         else:
-            full_response = "أهلاً بك! أنا تيجو، يرجى إعداد الاتصال بالخادم أولاً."
+            full_response = "النظام غير جاهز للرد حالياً."
             st.markdown(full_response)
             
     st.session_state.messages.append({"role": "assistant", "content": full_response})
