@@ -3,64 +3,56 @@ import google.generativeai as genai
 import os
 from PyPDF2 import PdfReader
 
-# 1. إعدادات الصفحة
+# 1. إعدادات الصفحة والجمالية
 st.set_page_config(page_title="Tego AI Strategic Advisor", layout="wide")
 
 # مسار صورتك الشخصية
 USER_IMAGE = "me.png"
 
-# 2. إعداد المفتاح والموديل
 # --- [ضع مفتاحك هنا بدقة] ---
 API_KEY = "AIzaSyDRJ1MRnpBEnEN2ArpJ_j0Yvyh6pbroVWA"
 # ---------------------------
 
-if API_KEY and API_KEY != "AIzaSyDRJ1MRnpBEnEN2ArpJ_j0Yvyh6pbroVWA":
+# 2. وظيفة الربط الذكي بالذكاء الاصطناعي
+def get_working_model():
+    if not API_KEY or API_KEY == "AIzaSyDRJ1MRnpBEnEN2ArpJ_j0Yvyh6pbroVWA":
+        return None
     try:
         genai.configure(api_key=API_KEY)
-        # استخدام موديل مستقر يدعم اللغة العربية والملفات
-        model = genai.GenerativeModel('gemini-1.5-flash')
-    except Exception as e:
-        st.error(f"خطأ في الاتصال بخدمة الذكاء الاصطناعي: {e}")
-        model = None
-else:
-    model = None
+        # فحص الموديلات المتاحة لتجنب خطأ 404
+        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        # محاولة اختيار أفضل موديل متاح
+        target = 'models/gemini-1.5-flash' if 'models/gemini-1.5-flash' in models else 'models/gemini-pro'
+        return genai.GenerativeModel(target)
+    except:
+        return None
 
-# وظيفة استخراج النص من ملف PDF
-def extract_pdf_content(file):
-    pdf_reader = PdfReader(file)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
-    return text
+model = get_working_model()
 
-# 3. القائمة الجانبية (خيار اللغة وتحميل الملفات)
+# 3. القائمة الجانبية (اللغة والملفات)
 with st.sidebar:
     st.title("مركز تحكم تيجو 🧠")
     if os.path.exists(USER_IMAGE):
         st.image(USER_IMAGE, width=120)
     
     # اختيار اللغة
-    language = st.selectbox("لغة الحوار / Language:", ["العربية", "English"])
+    language = st.radio("اختر لغة الحوار / Language:", ["العربية", "English"])
     
     st.write("---")
-    st.write("📂 تحليل البيانات الاستراتيجية")
+    st.write("📂 تحليل الملفات الاستراتيجية")
     uploaded_file = st.file_uploader("ارفع ملف PDF ليتعلمه تيجو", type=['pdf'])
-    if uploaded_file:
-        st.success("تم تحليل الملف بنجاح!")
-
-st.title("Tego AI Strategic Advisor")
 
 # 4. إدارة سجل المحادثة
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# عرض الرسائل السابقة مع صورتك الشخصية
+# عرض الرسائل السابقة مع صورتك الشخصية للردود
 for message in st.session_state.messages:
     avatar = USER_IMAGE if message["role"] == "assistant" and os.path.exists(USER_IMAGE) else None
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-# 5. معالجة السؤال والذكاء الاصطناعي
+# 5. استقبال السؤال ومعالجته (من الملف أو الإنترنت)
 if prompt := st.chat_input("تحدث مع تيجو بذكاء..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -68,24 +60,22 @@ if prompt := st.chat_input("تحدث مع تيجو بذكاء..."):
 
     with st.chat_message("assistant", avatar=USER_IMAGE if os.path.exists(USER_IMAGE) else None):
         if not model:
-            st.error("الرجاء وضع مفتاح API صحيح في الكود.")
+            st.error("❌ المفتاح غير صحيح أو غير موجود. يرجى التأكد من وضعه في الكود.")
         else:
             with st.spinner("تيجو يحلل ويجيب..."):
                 try:
-                    # تحضير سياق الملف إذا وجد
+                    # جلب سياق من الملف المرفوع إذا وجد
                     context = ""
                     if uploaded_file:
-                        pdf_text = extract_pdf_content(uploaded_file)
-                        context = f"استخدم المعلومات التالية من الملف المرفوع للإجابة: {pdf_text[:10000]}\n\n"
+                        reader = PdfReader(uploaded_file)
+                        text = "".join([page.extract_text() for page in reader.pages])
+                        context = f"المعلومات من الملف المرفوع: {text[:5000]}\n\n"
                     
-                    # صياغة التعليمات النهائية
-                    system_prompt = f"أنت مستشار استراتيجي ذكي اسمك تيجو. أجب باللغة {language} فقط."
-                    full_query = f"{system_prompt}\n{context}\nالسؤال: {prompt}"
-                    
+                    # إرسال الاستعلام
+                    full_query = f"أنت تيجو، مستشار استراتيجي. أجب باللغة {language}. {context} السؤال: {prompt}"
                     response = model.generate_content(full_query)
-                    answer = response.text
                     
-                    st.markdown(answer)
-                    st.session_state.messages.append({"role": "assistant", "content": answer})
+                    st.markdown(response.text)
+                    st.session_state.messages.append({"role": "assistant", "content": response.text})
                 except Exception as e:
-                    st.error(f"عذراً، حدث خطأ أثناء المعالجة: {e}")
+                    st.error(f"حدث خطأ أثناء الاتصال: {e}")
