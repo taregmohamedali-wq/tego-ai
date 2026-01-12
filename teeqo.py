@@ -1,139 +1,62 @@
 ﻿import streamlit as st
-import ollama
-from PyPDF2 import PdfReader
-import base64
-import os
-import requests
-from bs4 import BeautifulSoup
-import re
+from g4f.client import Client
 
-# ----------------------------------
-# إعداد الصفحة
-# ----------------------------------
-st.set_page_config(page_title="Tego AI Agent", layout="wide")
-st.title(" Tego  Agent ")
-st.caption("Agent محلي • عربي واضح • إنترنت ذكي • بدون API")
+# 1. إعدادات الصفحة والجماليات
+st.set_page_config(page_title="Tego AI Strategic Advisor", layout="wide")
 
-# ----------------------------------
-# Avatar
-# ----------------------------------
-def load_avatar():
-    if os.path.exists("avatar.png"):
-        with open("avatar.png", "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    return None
+# تنسيق CSS لجعل الواجهة تشبه صورتك الأصلية (الوضع الداكن)
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    .stChatMessage { border-radius: 10px; margin-bottom: 10px; }
+    </style>
+    """, unsafe_config=True)
 
-AVATAR = load_avatar()
+# 2. العنوان الجانبي (Sidebar) كما في صورتك
+with st.sidebar:
+    st.title("مركز تعلم تيجو 🧠")
+    st.write(":ارفع ملفاتك ليتعلم منها تيجو (PDF)")
+    uploaded_file = st.file_uploader("Drag and drop file here", type=['pdf'], help="Limit 200MB per file")
+    if st.button("Browse files"):
+        pass # هنا يمكن إضافة كود معالجة الملفات لاحقاً
 
-# ----------------------------------
-# الحالة
-# ----------------------------------
+st.title("Tego AI Strategic Advisor")
+
+# 3. إعداد محرك الذكاء الاصطناعي (بدون مفتاح API)
+client = Client()
+
+# 4. إدارة ذاكرة المحادثة
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "pdf_context" not in st.session_state:
-    st.session_state.pdf_context = ""
+# عرض الرسائل السابقة بتنسيق جميل
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-# ----------------------------------
-# Sidebar
-# ----------------------------------
-with st.sidebar:
-    st.header("📂 مركز المعرفة")
-
-    uploaded_file = st.file_uploader("ارفع PDF (اختياري)", type=["pdf"])
-    if uploaded_file:
-        reader = PdfReader(uploaded_file)
-        text = ""
-        for p in reader.pages:
-            if p.extract_text():
-                text += p.extract_text()
-        st.session_state.pdf_context = text[:1200]
-        st.success("تم تحميل الملف")
-
-    if st.button("🗑️ مسح الذاكرة"):
-        st.session_state.messages = []
-        st.session_state.pdf_context = ""
-        st.rerun()
-
-# ----------------------------------
-# 🌐 بحث إنترنت نظيف
-# ----------------------------------
-def web_search_clean(query):
-    try:
-        url = f"https://duckduckgo.com/html/?q={query}"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=6)
-        soup = BeautifulSoup(r.text, "html.parser")
-        text = soup.get_text(separator=" ", strip=True)
-        text = re.sub(r"\s+", " ", text)
-        return text[:1200]
-    except:
-        return ""
-
-# ----------------------------------
-# 🧠 قرار استخدام الإنترنت
-# ----------------------------------
-def should_use_internet(prompt):
-    keywords = ["سعر", "اليوم", "الآن", "آخر", "حديث", "أخبار", "كم"]
-    return any(word in prompt for word in keywords)
-
-# ----------------------------------
-# 🧠 Agent الرئيسي (عربي نظيف)
-# ----------------------------------
-def ask_tego(prompt, context):
-    internet_data = ""
-    if should_use_internet(prompt):
-        internet_data = web_search_clean(prompt)
-
-    system_prompt = f"""
-أنت مساعد ذكي عربي اسمه تيجو.
-
-التزم بالقواعد التالية حرفيًا:
-- اكتب بالعربية فقط
-- جمل واضحة وقصيرة
-- لا تكتب أي تفكير داخلي
-- لا تخلط لغات
-- إذا كانت المعلومة غير مؤكدة، اذكر ذلك بوضوح
-
-معلومات إضافية:
-{context}
-
-معلومات من الإنترنت:
-{internet_data}
-"""
-
-    response = ollama.chat(
-        model="gemma:2b",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ],
-        options={"num_predict": 160}
-    )
-
-    return response["message"]["content"]
-
-# ----------------------------------
-# عرض المحادثة
-# ----------------------------------
-for msg in st.session_state.messages:
-    avatar = f"data:image/png;base64,{AVATAR}" if msg["role"] == "assistant" and AVATAR else None
-    with st.chat_message(msg["role"], avatar=avatar):
-        st.markdown(msg["content"])
-
-# ----------------------------------
-# إدخال المستخدم
-# ----------------------------------
-user_input = st.chat_input("تحدث مع تيجو...")
-
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+# 5. منطقة إدخال المستخدم والرد
+if prompt := st.chat_input("...تحدث مع تيجو بذكاء"):
+    # إضافة عرض رسالة المستخدم
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(prompt)
 
-    with st.chat_message("assistant", avatar=f"data:image/png;base64,{AVATAR}" if AVATAR else None):
-        with st.spinner("تيجو يجيب..."):
-            answer = ask_tego(user_input, st.session_state.pdf_context)
-            st.markdown(answer)
-
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+    # توليد الرد من الإنترنت
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        full_response = ""
+        
+        try:
+            # الاتصال بالمزودين المجانيين عبر الإنترنت تلقائياً
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo", 
+                messages=[{"role": "user", "content": prompt}],
+            )
+            full_response = response.choices[0].message.content
+            message_placeholder.markdown(full_response)
+        except Exception as e:
+            full_response = "أواجه مشكلة حالياً في الوصول للمزودين المجانيين. يرجى المحاولة بعد لحظات."
+            st.error("فشل الاتصال بالخادم المجاني.")
+            
+    # حفظ رد الذكاء الاصطناعي في الذاكرة
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
