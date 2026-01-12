@@ -2,24 +2,30 @@
 import google.generativeai as genai
 import os
 
-# 1. إعدادات الصفحة
+# إعدادات الصفحة
 st.set_page_config(page_title="Tego AI Strategic Advisor", layout="wide")
 
-# مسار صورتك الشخصية
+# مسار صورتك الشخصية (تأكد أن اسمها me.png بجانب الملف)
 USER_IMAGE = "me.png"
 
-# 2. إعداد المفتاح (تأكد من وضعه بشكل صحيح هنا)
-API_KEY = "AIzaSy..." # ضع مفتاحك هنا
+# --- [ضع مفتاحك الجديد هنا بدقة] ---
+API_KEY = "AIzaSyDRJ1MRnpBEnEN2ArpJ_j0Yvyh6pbroVWA" 
+# ----------------------------------
 
+# تهيئة الاتصال
 try:
-    genai.configure(api_key=API_KEY)
-    # استخدام gemini-pro لضمان أعلى توافق واستقرار
-    model = genai.GenerativeModel('gemini-pro')
+    if API_KEY and API_KEY != "AIzaSyDRJ1MRnpBEnEN2ArpJ_j0Yvyh6pbroVWA":
+        genai.configure(api_key=API_KEY)
+        # استخدام flash لضمان السرعة والتوافق
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    else:
+        st.warning("الرجاء التأكد من كتابة مفتاح API صحيح داخل الكود.")
+        model = None
 except Exception as e:
-    st.error(f"حدث خطأ في التهيئة: {e}")
+    st.error(f"خطأ في التهيئة: {e}")
     model = None
 
-# 3. القائمة الجانبية
+# الواجهة الجانبية
 with st.sidebar:
     st.title("مركز تعلم تيجو 🧠")
     if os.path.exists(USER_IMAGE):
@@ -29,7 +35,7 @@ with st.sidebar:
 
 st.title("Tego AI Strategic Advisor")
 
-# 4. الذاكرة
+# إدارة المحادثة
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -38,7 +44,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-# 5. الاستجابة
+# منطقة الإدخال والرد
 if prompt := st.chat_input("تحدث مع تيجو بذكاء..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -47,17 +53,24 @@ if prompt := st.chat_input("تحدث مع تيجو بذكاء..."):
     with st.chat_message("assistant", avatar=USER_IMAGE if os.path.exists(USER_IMAGE) else None):
         if model:
             try:
-                with st.spinner("تيجو يفكر الآن..."):
-                    # إرسال السؤال
+                with st.spinner("تيجو يفكر..."):
                     response = model.generate_content(prompt)
-                    # معالجة النص المستلم بأمان
-                    full_response = response.text
-                    st.markdown(full_response)
+                    # التحقق من وجود رد نصي
+                    if response.text:
+                        full_response = response.text
+                        st.markdown(full_response)
+                    else:
+                        full_response = "اعتذر، لم أستطع تكوين رد حالياً."
+                        st.write(full_response)
             except Exception as e:
-                full_response = "عذراً، أحتاج لتحديث الموديل. جرب إرسال الرسالة مرة أخرى."
-                st.error(f"خطأ في الموديل: {e}")
+                # عرض رسالة واضحة للمستخدم في حال كان المفتاح غير صالح
+                if "API key not valid" in str(e):
+                    st.error("المفتاح المستخدم غير صالح. يرجى التأكد من نسخه بالكامل من Google AI Studio.")
+                else:
+                    st.error(f"حدث خطأ أثناء الاتصال: {e}")
+                full_response = "خطأ في الاتصال."
         else:
-            full_response = "النظام غير جاهز."
-            st.markdown(full_response)
+            full_response = "النظام غير متصل بالخادم."
+            st.info(full_response)
             
     st.session_state.messages.append({"role": "assistant", "content": full_response})
