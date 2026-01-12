@@ -1,56 +1,65 @@
 ﻿import streamlit as st
-from g4f.client import Client
+from hugchat import hugchat
+import os
 
 # 1. إعدادات الصفحة
 st.set_page_config(page_title="Tego AI Strategic Advisor", layout="wide")
 
-# 2. تنسيق الواجهة (تصحيح الخطأ هنا)
-st.markdown("""
-    <style>
-    .main { background-color: #0e1117; }
-    div.stButton > button:first-child {
-        background-color: #ff4b4b;
-        color: white;
-    }
-    </style>
-    """, unsafe_allow_html=True) # تم تصحيح هذا السطر
+# مسار صورتك الشخصية
+USER_IMAGE = "me.png"
 
-# 3. القائمة الجانبية (Sidebar)
+# 2. القائمة الجانبية (Sidebar)
 with st.sidebar:
     st.title("مركز تعلم تيجو 🧠")
+    # عرض صورتك في القائمة الجانبية أيضاً
+    if os.path.exists(USER_IMAGE):
+        st.image(USER_IMAGE, width=100)
+    
     st.write("ارفع ملفاتك ليتعلم منها تيجو (PDF)")
     uploaded_file = st.file_uploader("اسحب الملف هنا", type=['pdf'])
 
 st.title("Tego AI Strategic Advisor")
 
-# 4. إعداد الاتصال بالذكاء الاصطناعي (بدون مفتاح)
-client = Client()
+# 3. إعداد الاتصال بالذكاء الاصطناعي (HuggingChat)
+if "chatbot" not in st.session_state:
+    try:
+        st.session_state.chatbot = hugchat.ChatBot(cookie_path=None)
+        id = st.session_state.chatbot.new_conversation()
+        st.session_state.chatbot.change_conversation(id)
+    except:
+        st.session_state.chatbot = None
 
+# 4. إدارة سجل المحادثة
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# عرض الرسائل القديمة
+# 5. عرض الرسائل السابقة مع صورتك الشخصية بدل الروبوت
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
+    # هنا التعديل: نستخدم صورتك كأفاتار للمساعد (assistant)
+    avatar = USER_IMAGE if message["role"] == "assistant" and os.path.exists(USER_IMAGE) else None
+    with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-# 5. منطقة الدردشة
+# 6. منطقة إدخال المستخدم والرد
 if prompt := st.chat_input("تحدث مع تيجو بذكاء..."):
+    # إضافة رسالة المستخدم
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    with st.chat_message("assistant"):
-        try:
-            # محاولة جلب رد مجاني من الإنترنت
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-            )
-            full_response = response.choices[0].message.content
+    # توليد الرد من المساعد وصورتك تظهر بجانبه
+    with st.chat_message("assistant", avatar=USER_IMAGE if os.path.exists(USER_IMAGE) else None):
+        if st.session_state.chatbot:
+            try:
+                with st.spinner("جارِ التفكير..."):
+                    response = st.session_state.chatbot.chat(prompt)
+                    full_response = str(response)
+                    st.markdown(full_response)
+            except:
+                full_response = "عذراً، أواجه ضغطاً في الطلبات حالياً."
+                st.error(full_response)
+        else:
+            full_response = "أهلاً بك! أنا تيجو، كيف يمكنني مساعدتك اليوم؟"
             st.markdown(full_response)
-        except Exception as e:
-            full_response = "عذراً، الخادم المجاني مشغول حالياً. حاول مرة أخرى."
-            st.error(f"حدث خطأ: {e}")
             
     st.session_state.messages.append({"role": "assistant", "content": full_response})

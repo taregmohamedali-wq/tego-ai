@@ -1,3 +1,2 @@
 streamlit
-g4f
-python-docx
+hugchat
