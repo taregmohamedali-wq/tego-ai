@@ -1,62 +1,56 @@
 ﻿import streamlit as st
 from g4f.client import Client
 
-# 1. إعدادات الصفحة والجماليات
+# 1. إعدادات الصفحة
 st.set_page_config(page_title="Tego AI Strategic Advisor", layout="wide")
 
-# تنسيق CSS لجعل الواجهة تشبه صورتك الأصلية (الوضع الداكن)
+# 2. تنسيق الواجهة (تصحيح الخطأ هنا)
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    .stChatMessage { border-radius: 10px; margin-bottom: 10px; }
+    div.stButton > button:first-child {
+        background-color: #ff4b4b;
+        color: white;
+    }
     </style>
-    """, unsafe_config=True)
+    """, unsafe_allow_html=True) # تم تصحيح هذا السطر
 
-# 2. العنوان الجانبي (Sidebar) كما في صورتك
+# 3. القائمة الجانبية (Sidebar)
 with st.sidebar:
     st.title("مركز تعلم تيجو 🧠")
-    st.write(":ارفع ملفاتك ليتعلم منها تيجو (PDF)")
-    uploaded_file = st.file_uploader("Drag and drop file here", type=['pdf'], help="Limit 200MB per file")
-    if st.button("Browse files"):
-        pass # هنا يمكن إضافة كود معالجة الملفات لاحقاً
+    st.write("ارفع ملفاتك ليتعلم منها تيجو (PDF)")
+    uploaded_file = st.file_uploader("اسحب الملف هنا", type=['pdf'])
 
 st.title("Tego AI Strategic Advisor")
 
-# 3. إعداد محرك الذكاء الاصطناعي (بدون مفتاح API)
+# 4. إعداد الاتصال بالذكاء الاصطناعي (بدون مفتاح)
 client = Client()
 
-# 4. إدارة ذاكرة المحادثة
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# عرض الرسائل السابقة بتنسيق جميل
+# عرض الرسائل القديمة
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 5. منطقة إدخال المستخدم والرد
-if prompt := st.chat_input("...تحدث مع تيجو بذكاء"):
-    # إضافة عرض رسالة المستخدم
+# 5. منطقة الدردشة
+if prompt := st.chat_input("تحدث مع تيجو بذكاء..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # توليد الرد من الإنترنت
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
-        
         try:
-            # الاتصال بالمزودين المجانيين عبر الإنترنت تلقائياً
+            # محاولة جلب رد مجاني من الإنترنت
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo", 
+                model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
             )
             full_response = response.choices[0].message.content
-            message_placeholder.markdown(full_response)
+            st.markdown(full_response)
         except Exception as e:
-            full_response = "أواجه مشكلة حالياً في الوصول للمزودين المجانيين. يرجى المحاولة بعد لحظات."
-            st.error("فشل الاتصال بالخادم المجاني.")
+            full_response = "عذراً، الخادم المجاني مشغول حالياً. حاول مرة أخرى."
+            st.error(f"حدث خطأ: {e}")
             
-    # حفظ رد الذكاء الاصطناعي في الذاكرة
     st.session_state.messages.append({"role": "assistant", "content": full_response})
