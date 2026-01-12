@@ -1,5 +1,5 @@
 ﻿import streamlit as st
-from hugchat import hugchat
+from duckduckgo_search import DDGS
 import os
 
 # 1. إعدادات الصفحة
@@ -11,55 +11,54 @@ USER_IMAGE = "me.png"
 # 2. القائمة الجانبية (Sidebar)
 with st.sidebar:
     st.title("مركز تعلم تيجو 🧠")
-    # عرض صورتك في القائمة الجانبية أيضاً
+    # عرض صورتك في القائمة الجانبية
     if os.path.exists(USER_IMAGE):
         st.image(USER_IMAGE, width=100)
+    else:
+        st.warning("لم يتم العثور على ملف me.png")
     
     st.write("ارفع ملفاتك ليتعلم منها تيجو (PDF)")
-    uploaded_file = st.file_uploader("اسحب الملف هنا", type=['pdf'])
+    st.file_uploader("اسحب الملف هنا", type=['pdf'])
 
 st.title("Tego AI Strategic Advisor")
 
-# 3. إعداد الاتصال بالذكاء الاصطناعي (HuggingChat)
-if "chatbot" not in st.session_state:
-    try:
-        st.session_state.chatbot = hugchat.ChatBot(cookie_path=None)
-        id = st.session_state.chatbot.new_conversation()
-        st.session_state.chatbot.change_conversation(id)
-    except:
-        st.session_state.chatbot = None
-
-# 4. إدارة سجل المحادثة
+# 3. إدارة ذاكرة المحادثة
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# 5. عرض الرسائل السابقة مع صورتك الشخصية بدل الروبوت
+# 4. عرض الرسائل السابقة مع صورتك الشخصية
 for message in st.session_state.messages:
-    # هنا التعديل: نستخدم صورتك كأفاتار للمساعد (assistant)
+    # نستخدم صورتك كأفاتار للردود
     avatar = USER_IMAGE if message["role"] == "assistant" and os.path.exists(USER_IMAGE) else None
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
+# 5. وظيفة البحث والرد (مثل جوجل)
+def get_ai_response(query):
+    try:
+        with DDGS() as ddgs:
+            # البحث عن ملخص سريع للسؤال
+            results = ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit='y')
+            if results:
+                # نأخذ أول نتيجة ونعرضها كإجابة
+                return results[0]['body']
+            else:
+                return "عذراً، لم أجد معلومات كافية حول هذا الموضوع حالياً."
+    except Exception as e:
+        return "أواجه مشكلة في الاتصال بالشبكة، يرجى المحاولة مرة أخرى."
+
 # 6. منطقة إدخال المستخدم والرد
-if prompt := st.chat_input("تحدث مع تيجو بذكاء..."):
+if prompt := st.chat_input("اسأل تيجو أي شيء..."):
     # إضافة رسالة المستخدم
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # توليد الرد من المساعد وصورتك تظهر بجانبه
+    # توليد الرد (البحث في الإنترنت) مع صورتك
     with st.chat_message("assistant", avatar=USER_IMAGE if os.path.exists(USER_IMAGE) else None):
-        if st.session_state.chatbot:
-            try:
-                with st.spinner("جارِ التفكير..."):
-                    response = st.session_state.chatbot.chat(prompt)
-                    full_response = str(response)
-                    st.markdown(full_response)
-            except:
-                full_response = "عذراً، أواجه ضغطاً في الطلبات حالياً."
-                st.error(full_response)
-        else:
-            full_response = "أهلاً بك! أنا تيجو، كيف يمكنني مساعدتك اليوم؟"
+        with st.spinner("جارِ البحث والتحليل..."):
+            full_response = get_ai_response(prompt)
             st.markdown(full_response)
             
+    # حفظ الرد في السجل
     st.session_state.messages.append({"role": "assistant", "content": full_response})
